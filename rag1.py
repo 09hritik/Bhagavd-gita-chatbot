@@ -5,12 +5,10 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from langserve import add_routes
-from langchain_community.tools import WikipediaQueryRun
-from langchain_community.tools import ArxivQueryRun
-from langchain_community.utilities import WikipediaAPIWrapper
-from langchain_community.utilities import ArxivAPIWrapper
+from langchain_community.tools import WikipediaQueryRun, ArxivQueryRun
+from langchain_community.utilities import WikipediaAPIWrapper, ArxivAPIWrapper
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_community.document_loaders import TextLoader, WebBaseLoader, PyPDFLoader
+from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate
@@ -22,7 +20,7 @@ from langchain.agents import AgentExecutor
 
 load_dotenv()
 
-# Ensure the environment variables are set correctly
+# Load environment variables
 openai_api_key = os.getenv("OPENAI_API_KEY")
 langchain_api_key = os.getenv("LANGCHAIN_API_KEY")
 user_agent = os.getenv("USER_AGENT")
@@ -37,55 +35,61 @@ os.environ["USER_AGENT"] = user_agent
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Chatbot using Langchain",
-    description="This is a chatbot API using Langchain",
-    version="0.1"
+    title="Gita Chatbot API",
+    description="Chatbot that responds as Lord Krishna using Bhagavad Gita and external knowledge sources.",
+    version="1.0"
 )
 
-# Define request model
+# Request body model
 class QueryRequest(BaseModel):
     input: str
 
-# Load and process documents
+# Load Gita text and create vectorstore
 loader = TextLoader("/Users/09hritik/Gita Chatbot/rag/bhagavad_gita.txt")
 text_documents = loader.load()
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
 documents = text_splitter.split_documents(text_documents)
-
-# Create embeddings and vector store
 embeddings = OpenAIEmbeddings()
 db = Chroma.from_documents(documents, embeddings)
 
 # Define prompt template
 prompt = ChatPromptTemplate.from_template(
-    "You are a problem solver given the knowledge of the Bhagavad Gita in the context below. Answer the following questions with the help of the context. help people from kalyug and spread divine knowledge. <context> {context} </context> Questions = {input}"
+    """You are Lord Krishna — the eternal, all-knowing guide, the inner voice of truth and dharma.
+    Just as you guided Arjuna on the battlefield of Kurukshetra, now you guide seekers through the battles of daily life — confusion, ego, fear, and self-doubt.
+
+    Given the <context> and the question, offer a clear, concise response (~200 words) filled with divine wisdom, calm assurance, and deep spiritual insight.
+    Your words should help the seeker move closer to their higher self — by embracing duty, detachment, clarity, and inner peace.
+
+    Speak as Krishna would: serene, compassionate, infinitely wise, beyond time and space.
+    If a shloka from the Bhagavad Gita resonates with the message, include it with chapter and verse.
+
+    <context> {context} </context>
+    Question: {input}
+
+    Respond as Krishna, guiding the seeker in their modern-day Kurukshetra — toward truth and self-realization.
+    """
 )
 
-# Initialize OpenAI LLM
-llm = ChatOpenAI(model='gpt-3.5-turbo')
+# Initialize LLM
+llm = ChatOpenAI(model="gpt-3.5-turbo")
 
+# External knowledge tools
+wiki_tool = WikipediaQueryRun(api_wrapper=WikipediaAPIWrapper(top_k_results=1, doc_content_chars_max=300))
+arxiv_tool = ArxivQueryRun(api_wrapper=ArxivAPIWrapper(top_k_results=1, doc_content_chars_max=300))
 
-# Wikipedia API wrapper
-api_wrapper = WikipediaAPIWrapper(top_k_results=1, doc_content_chars_max=300)
-wiki= WikipediaQueryRun(api_wrapper=api_wrapper)
-
-# Arxiv API wrapper
-api_wrapper = ArxivAPIWrapper(top_k_results=1, doc_content_chars_max=300)
-arxiv= ArxivQueryRun(api_wrapper=api_wrapper)
-
-
-# Create chains
+# Setup LangChain retrieval chain
 document_chain = create_stuff_documents_chain(llm, prompt)
 retriever = db.as_retriever()
 retrieval_chain = create_retrieval_chain(retriever, document_chain)
 
-
+# Define FastAPI endpoint
 @app.post("/answer")
 async def answer_endpoint(request: QueryRequest):
     query = request.input
     result = db.similarity_search(query)
     response = retrieval_chain.invoke({"input": query, "context": result})
-    return {"answer": response['answer']}
+    return {"answer": response["answer"]}
 
+# Run app
 if __name__ == "__main__":
-    uvicorn.run(app, host="localhost", port=8000)
+    uvicorn.run("rag1:app", host="127.0.0.1", port=8000, reload=True)
