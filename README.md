@@ -39,4 +39,4 @@ cd Bhagavd-gita-chatbot
 pip install -r requirements.txt
 
 # Run the app
-uvicorn main:app --reload
+uvicorn rag1:app --reload
