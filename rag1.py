@@ -17,7 +17,6 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.retrieval import create_retrieval_chain
 from langchain.agents import create_openai_tools_agent
 from langchain.agents import AgentExecutor
-from gtts import gtts
 
 load_dotenv()
 
